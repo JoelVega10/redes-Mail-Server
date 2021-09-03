@@ -1,0 +1,15 @@
+(itwisted.news.database
+Group
+p1
+(dp2
+S'articles'
+p3
+(dp4
+sS'flags'
+p5
+(lp6
+sS'name'
+p7
+S'local.programming.python'
+p8
+sb.
