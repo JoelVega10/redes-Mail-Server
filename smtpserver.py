@@ -4,19 +4,37 @@ from twisted.internet import protocol, reactor
 from zope.interface import implementer
 import os
 from email.header import Header
+from twisted.names import client
 
+from twisted.mail import relaymanager
+
+mxCalc = relaymanager.MXCalculator()
+
+def getSMTPServer(domain):
+    """
+    Imprime el nombre del smpt server del dominio ingresado
+    """
+    return print(mxCalc.getMX(domain).name)
+
+def printResult(address, hostname):
+    """
+    Imprime la direccion ip si fue encontrada
+    """
+    if address:
+        sys.stdout.write(address + '\n')
+    else:
+        sys.stderr.write(
+            'ERROR: No IP addresses found for name %r\n' % (hostname,))
 
 
 @implementer(smtp.IMessage)
 class MaildirMessageWriter(object):
-    """
-    handles the local delivery to a maildir inbox
-    """
+
     def __init__(self, user):
 
         if not os.path.exists(userDir):
             os.mkdir(userDir)
-        # we create a directory for this user
+
         destDir = os.path.join(userDir,str(user.dest))
         if not os.path.exists(destDir):
             os.mkdir(destDir)
@@ -26,18 +44,25 @@ class MaildirMessageWriter(object):
         self.lines = []
 
     def lineReceived(self, line):
+        """
+        Recibe informacion de la comunicacion con el cliente.
+        """
         if type(line) != str:
             line = line.decode("utf-8")
         self.lines.append(line)
 
     def eomReceived(self):
-        # message is complete, store it
+        """
+        Guarda el mensaje cuando esta listo.
+        """
         self.lines.append('')
         messageData = '\n'.join(self.lines)
         return self.mailbox.appendMessage(bytes(messageData,'utf-8'))
 
     def connectionLost(self):
-        # unexpected loss of connectio, don't save
+        """
+        Elimina las lineas guardadas ya que se perdio la conexion.
+        """
         del self.lines
 
 @implementer(smtp.IMessageDelivery)
@@ -48,10 +73,9 @@ class LocalDelivery(object):
         self.userDir = userDir
 
     def receivedHeader (self, helo, origin, recipients):
-        # client is how the client ident'ed itself
-        # clientIP is the ip of the client side's end
-        # we could do a reverse DNS lookup and check if it's true
-        # also check on RBL's and such
+        """
+        Recibe los headers del mensaje y los devuelve en el formato especificado.
+        """
         client, clientIP= helo
         recipient = recipients[0]
         # this must be our CNAME
@@ -59,24 +83,35 @@ class LocalDelivery(object):
         value= """from %s [%s] by %s with SMTP for %s; %s""" % (
             client.decode("utf-8"), clientIP.decode("utf-8"), myself, recipient, smtp.rfc822date().decode("utf-8")
             )
-        print("Server ready.")
-        print("Waiting for connections...")
-        print()
         return "Received: %s" % Header(value)
 
     def validateFrom (self, helo, originAddress):
+        """
+        Valida el dominio del from.
+        """
         self.client = helo
-        # originAddress is a twisted.mail.smtp.Address
-        # if the from is invalid, we should
-        # raise smtp.SMTPBadSender
         return originAddress
 
     def validateTo(self, user):
+        """
+        Valida el dominio del to.
+        """
         if user.dest.domain.decode("utf-8") in self.validDomains:
             print("Domain: %s accepted" % user.dest.domain.decode("utf-8"))
             print()
+            print("Server ready.")
+            print("Waiting for connections...")
+            print()
             return lambda: MaildirMessageWriter(user)
         else:
+            '''
+            Descomentar para conocer el ip y nombre del server de un dominio no aceptado.
+            
+            d = client.getHostByName(user.dest.domain.decode("utf-8"))
+            d.addCallback(printResult, user.dest.domain.decode("utf-8"))
+            
+            getSMTPServer(user.dest.domain.decode("utf-8"))
+            '''
             print("Domain: %s not listed" % user.dest.domain.decode("utf-8"))
             print("Domains available:")
             print(self.validDomains)
@@ -95,13 +130,18 @@ class SMTPFactory (protocol.ServerFactory):
         self.userDir = userDir
 
     def buildProtocol(self, addr):
+        """
+        Prepara el protocolo smpt para la recepcion de correo.
+        """
         delivery = LocalDelivery(self.userDir,self.validDomains)
         smtpProtocol = smtp.SMTP(delivery)
         smtpProtocol.factory = self
         return smtpProtocol
 
+#python3 smtpserver.py -d <domains> -s <mail-storage> -p <port>
 if __name__=='__main__':
-    userDir = sys.argv[1]
     domains = sys.argv[2].split(',')
-    reactor.listenTCP(2525, SMTPFactory(userDir,domains))
+    userDir = sys.argv[4]
+    port = int(sys.argv[6])
+    reactor.listenTCP(port, SMTPFactory(userDir,domains))
     reactor.run()

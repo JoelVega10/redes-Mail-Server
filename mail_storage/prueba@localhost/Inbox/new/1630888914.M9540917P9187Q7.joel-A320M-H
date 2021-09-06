@@ -1,0 +1,10 @@
+Received: from joel-A320M-H [127.0.0.1] by localhost with SMTP for prueba@localhost; Sun, 05 Sep 2021 18:41:54 -0600
+Content-Type: text/plain; charset="us-ascii"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Subject: a
+From: dac@gmail.com
+To: prueba@localhost, joel@localhost, dac@localhost, joel@example.com,
+ dac@example.com, prueba@example.com, jogevego@gmail.com, user@yahoo.com
+
+a
